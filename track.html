@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ติดตามสถานะซ่อม</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#F0F4F0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:20px 16px}
+.card{background:#fff;border-radius:16px;padding:20px;width:100%;max-width:400px;box-shadow:0 2px 12px rgba(0,0,0,.1)}
+.header{text-align:center;margin-bottom:20px}
+.shop-name{font-size:14px;color:#666;margin-bottom:4px}
+.title{font-size:22px;font-weight:800;color:#1D9E75}
+.job-id{font-size:13px;color:#888;margin-top:4px}
+.status-big{text-align:center;padding:20px;margin:16px 0;border-radius:12px}
+.status-big .icon{font-size:48px;margin-bottom:8px}
+.status-big .label{font-size:18px;font-weight:800}
+.status-big .desc{font-size:13px;margin-top:4px;opacity:.8}
+.st-wait  {background:#FAEEDA;color:#854F0B}
+.st-diag  {background:#E6F1FB;color:#185FA5}
+.st-fix   {background:#EEEDFE;color:#534AB7}
+.st-done  {background:#E1F5EE;color:#0F6E56}
+.st-cancel{background:#FCEBEB;color:#A32D2D}
+.info-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #F0F0F0;font-size:13px}
+.info-row:last-child{border-bottom:none}
+.info-label{color:#888}
+.info-value{font-weight:600;text-align:right}
+.section-title{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}
+.tl-item{display:flex;gap:10px;padding-bottom:14px;position:relative}
+.tl-item:not(:last-child)::before{content:'';position:absolute;left:13px;top:28px;bottom:0;width:1px;background:#E0E0E0}
+.tl-dot{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;border:1.5px solid #E0E0E0;background:#fff}
+.tl-dot.curr{background:#1D9E75;border-color:#1D9E75;color:#fff}
+.tl-dot.past{background:#E1F5EE;border-color:#1D9E75;color:#0F6E56}
+.tl-body{flex:1;padding-top:2px}
+.tl-label{font-size:13px;font-weight:700}
+.tl-time{font-size:11px;color:#888;margin-top:1px}
+.tl-note{font-size:12px;color:#666;margin-top:2px}
+.refresh-btn{display:block;width:100%;padding:12px;background:#1D9E75;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-top:16px;font-family:inherit}
+.refresh-btn:hover{background:#0F6E56}
+.error-box{text-align:center;padding:40px 20px;color:#888}
+.error-box .big{font-size:40px;margin-bottom:12px}
+.loader{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:12px;color:#888}
+.spin{width:32px;height:32px;border:3px solid #E0E0E0;border-top-color:#1D9E75;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.footer{margin-top:20px;text-align:center;font-size:12px;color:#aaa}
+</style>
+</head>
+<body>
+
+<div class="card" id="app">
+  <div class="loader"><div class="spin"></div><span>กำลังโหลดสถานะ...</span></div>
+</div>
+<div class="footer">ระบบติดตามสถานะซ่อม</div>
+
+<script>
+// ======================================================
+//  ⚙️ แก้ 2 บรรทัดนี้ก่อนอัพโหลด track.html ขึ้น GitHub
+// ======================================================
+const SHOP_NAME = ""Wasan Shop";   // ← ชื่อร้านของคุณ
+const API_URL   = "https://script.google.com/macros/s/ใส่_ID_ตรงนี้/exec"; // ← Web App URL จาก Apps Script
+// ======================================================
+
+const STATUS_INFO = {
+  wait:   { icon:"⏳", label:"รอรับงาน",      desc:"เจ้าหน้าที่จะตรวจรับเครื่องเร็วๆ นี้",     cls:"st-wait" },
+  diag:   { icon:"🔍", label:"กำลังวินิจฉัย", desc:"ช่างกำลังตรวจหาสาเหตุของปัญหา",            cls:"st-diag" },
+  fix:    { icon:"🔧", label:"กำลังซ่อม",    desc:"ช่างกำลังดำเนินการซ่อมเครื่องของคุณ",       cls:"st-fix" },
+  done:   { icon:"✅", label:"ซ่อมเสร็จแล้ว!", desc:"เครื่องของคุณพร้อมรับแล้ว กรุณามารับได้เลย", cls:"st-done" },
+  cancel: { icon:"❌", label:"ยกเลิก",        desc:"งานซ่อมนี้ถูกยกเลิก กรุณาติดต่อร้าน",       cls:"st-cancel" }
+};
+
+const params = new URLSearchParams(window.location.search);
+const jobId  = params.get("id") || params.get("job");
+
+function fmtDate(s) {
+  if(!s) return "-";
+  try { return new Date(s).toLocaleDateString("th-TH",{day:"2-digit",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"}); } catch(e){ return s; }
+}
+
+async function loadStatus() {
+  const app = document.getElementById("app");
+  if(!jobId) {
+    app.innerHTML = `<div class="error-box"><div class="big">🔍</div><div>ไม่พบเลขงาน<br><small>กรุณาสแกน QR Code จากใบรับซ่อม</small></div></div>`;
+    return;
+  }
+  if(!API_URL) {
+    app.innerHTML = `<div class="error-box"><div class="big">⚙️</div><div>ยังไม่ได้ตั้งค่าระบบ<br><small>กรุณาติดต่อเจ้าของร้าน</small></div></div>`;
+    return;
+  }
+  try {
+    const r = await fetch(API_URL + "?action=getOne&id=" + encodeURIComponent(jobId), { redirect:"follow" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const data = await r.json();
+    if(!data.job) { app.innerHTML = `<div class="error-box"><div class="big">😕</div><div>ไม่พบเลขงาน <strong>${jobId}</strong><br><small>กรุณาตรวจสอบ QR Code อีกครั้ง</small></div></div>`; return; }
+    renderJob(data.job);
+  } catch(e) {
+    app.innerHTML = `<div class="error-box"><div class="big">📡</div><div>ไม่สามารถโหลดข้อมูลได้<br><small>${e.message}</small></div><button class="refresh-btn" style="margin-top:16px" onclick="loadStatus()">ลองอีกครั้ง</button></div>`;
+  }
+}
+
+function renderJob(j) {
+  const st = STATUS_INFO[j.status] || { icon:"❓", label:j.status, desc:"", cls:"st-wait" };
+  const history = j.history || [];
+  document.getElementById("app").innerHTML = `
+    <div class="header">
+      <div class="shop-name">${SHOP_NAME}</div>
+      <div class="title">🖨 ติดตามสถานะซ่อม</div>
+      <div class="job-id">เลขงาน: ${j.id}</div>
+    </div>
+
+    <div class="status-big ${st.cls}">
+      <div class="icon">${st.icon}</div>
+      <div class="label">${st.label}</div>
+      <div class="desc">${st.desc}</div>
+    </div>
+
+    <div class="section-title">ข้อมูลเครื่อง</div>
+    <div class="info-row"><span class="info-label">เครื่อง</span><span class="info-value">${j.brand} ${j.model}</span></div>
+    ${j.serial?`<div class="info-row"><span class="info-label">Serial No.</span><span class="info-value">${j.serial}</span></div>`:""}
+    <div class="info-row"><span class="info-label">อาการ</span><span class="info-value">${j.issueType}</span></div>
+    ${j.estPrice&&j.estPrice!=="0"?`<div class="info-row"><span class="info-label">ราคาประเมิน</span><span class="info-value">${j.estPrice} บาท</span></div>`:""}
+    ${j.dueDate?`<div class="info-row"><span class="info-label">วันนัดรับ</span><span class="info-value">${j.dueDate}</span></div>`:""}
+
+    <div class="section-title">ความคืบหน้า</div>
+    <div class="timeline">
+      ${history.slice().reverse().map((h,i)=>`
+        <div class="tl-item">
+          <div class="tl-dot ${i===0?"curr":"past"}">${STATUS_INFO[h.status]?.icon||"✓"}</div>
+          <div class="tl-body">
+            <div class="tl-label">${h.label}</div>
+            <div class="tl-time">${fmtDate(h.time)}</div>
+            ${h.note?`<div class="tl-note">${h.note}</div>`:""}
+          </div>
+        </div>
+      `).join("")}
+    </div>
+
+    <div class="info-row" style="margin-top:8px"><span class="info-label">รับงาน</span><span class="info-value">${fmtDate(j.createdAt)}</span></div>
+
+    <button class="refresh-btn" onclick="loadStatus()">🔄 อัพเดทสถานะ</button>
+  `;
+}
+
+loadStatus();
+setInterval(loadStatus, 60000); // auto-refresh ทุก 1 นาที
+</script>
+</body>
+</html>
