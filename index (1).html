@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบใบรับซ่อมปริ้น</title>
+<style>
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --green: #1D9E75; --green-dark: #0F6E56; --green-light: #E1F5EE;
+  --blue: #185FA5;  --blue-light: #E6F1FB;
+  --amber: #854F0B; --amber-light: #FAEEDA;
+  --red: #A32D2D;   --red-light: #FCEBEB;
+  --purple: #534AB7; --purple-light: #EEEDFE;
+  --gray: #5F5E5A;  --gray-light: #F1EFE8; --gray-border: #D3D1C7;
+  --text: #2C2C2A;  --text-sec: #5F5E5A;
+  --bg: #F9F8F5; --card: #ffffff;
+  --radius: 10px; --radius-sm: 6px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; background: var(--bg); color: var(--text); line-height: 1.5; }
+button { font-family: inherit; cursor: pointer; }
+input, select, textarea { font-family: inherit; font-size: 14px; }
+
+/* ===== LAYOUT ===== */
+.app-header { background: var(--green); color: #fff; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+.app-header h1 { font-size: 16px; font-weight: 600; }
+.app-header .sub { font-size: 12px; opacity: .85; }
+.tabs { display: flex; background: var(--card); border-bottom: 1px solid var(--gray-border); overflow-x: auto; }
+.tab { flex: 1; min-width: 70px; padding: 10px 8px; text-align: center; font-size: 12px; color: var(--text-sec); border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; transition: all .15s; }
+.tab.active { color: var(--green); border-bottom-color: var(--green); font-weight: 600; }
+.panel { display: none; padding: 12px; max-width: 640px; margin: 0 auto; }
+.panel.active { display: block; }
+
+/* ===== CARDS ===== */
+.card { background: var(--card); border: 1px solid var(--gray-border); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow); }
+.card-title { font-size: 12px; font-weight: 600; color: var(--text-sec); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--gray-border); }
+
+/* ===== FORM ===== */
+label { display: block; font-size: 12px; color: var(--text-sec); font-weight: 600; margin-bottom: 4px; }
+input[type=text], input[type=tel], input[type=number], input[type=date], select, textarea {
+  width: 100%; padding: 9px 10px; border: 1px solid var(--gray-border); border-radius: var(--radius-sm);
+  background: #fff; color: var(--text); transition: border .15s;
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--green); }
+textarea { resize: vertical; min-height: 72px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.form-row.full { grid-template-columns: 1fr; }
+.form-field { margin-bottom: 10px; }
+
+/* ===== BUTTONS ===== */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; border: 1px solid var(--gray-border); background: var(--card); color: var(--text); transition: all .15s; }
+.btn:hover { background: var(--gray-light); }
+.btn.primary { background: var(--green); color: #fff; border-color: var(--green); }
+.btn.primary:hover { background: var(--green-dark); }
+.btn.danger { color: var(--red); border-color: var(--red); }
+.btn.danger:hover { background: var(--red-light); }
+.btn.sm { padding: 5px 10px; font-size: 12px; }
+.btn.block { width: 100%; justify-content: center; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ===== BADGE ===== */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+.badge.wait   { background: var(--amber-light);  color: var(--amber); }
+.badge.diag   { background: var(--blue-light);   color: var(--blue); }
+.badge.fix    { background: var(--purple-light);  color: var(--purple); }
+.badge.done   { background: var(--green-light);  color: var(--green-dark); }
+.badge.cancel { background: var(--red-light);    color: var(--red); }
+
+/* ===== JOB ROWS ===== */
+.job-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--gray-border); cursor: pointer; transition: opacity .15s; }
+.job-row:last-child { border-bottom: none; }
+.job-row:hover { opacity: .75; }
+.job-id { font-size: 11px; color: var(--text-sec); min-width: 62px; }
+.job-date { font-size: 11px; color: var(--text-sec); }
+.job-body { flex: 1; }
+.job-name { font-weight: 600; font-size: 13px; }
+.job-sub  { font-size: 12px; color: var(--text-sec); margin-top: 1px; }
+.empty-state { text-align: center; padding: 32px 16px; color: var(--text-sec); font-size: 13px; }
+
+/* ===== STATS ===== */
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.stat-card { background: var(--card); border: 1px solid var(--gray-border); border-radius: var(--radius); padding: 12px; text-align: center; }
+.stat-num { font-size: 26px; font-weight: 700; }
+.stat-lbl { font-size: 11px; color: var(--text-sec); margin-top: 2px; }
+
+/* ===== MODAL ===== */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200; overflow-y: auto; padding: 16px; }
+.modal-overlay.open { display: block; }
+.modal { background: var(--card); border-radius: var(--radius); max-width: 520px; margin: 0 auto; padding: 16px; }
+.modal-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+.modal-close { background: none; border: none; font-size: 20px; color: var(--text-sec); padding: 0; line-height: 1; }
+
+/* ===== TIMELINE ===== */
+.timeline { margin: 0; }
+.tl-item { display: flex; gap: 10px; padding-bottom: 14px; position: relative; }
+.tl-item:not(:last-child)::before { content: ''; position: absolute; left: 14px; top: 30px; bottom: 0; width: 1px; background: var(--gray-border); }
+.tl-dot { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--gray-border); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 12px; background: var(--card); }
+.tl-dot.done { background: var(--green); border-color: var(--green); color: #fff; }
+.tl-dot.curr { background: var(--blue); border-color: var(--blue); color: #fff; }
+.tl-info { flex: 1; padding-top: 3px; }
+.tl-label { font-size: 13px; font-weight: 600; }
+.tl-time  { font-size: 11px; color: var(--text-sec); }
+.tl-note  { font-size: 12px; color: var(--text-sec); margin-top: 2px; }
+
+/* ===== LINE SETUP ===== */
+.line-banner { background: #00B900; color: #fff; border-radius: var(--radius); padding: 14px; margin-bottom: 12px; }
+.line-banner h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.line-banner p  { font-size: 12px; opacity: .9; line-height: 1.6; }
+.step-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--gray-border); align-items: flex-start; }
+.step-item:last-child { border-bottom: none; }
+.step-num { width: 22px; height: 22px; border-radius: 50%; background: var(--green); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+.step-text { font-size: 13px; line-height: 1.5; }
+.step-text code { background: var(--gray-light); padding: 1px 5px; border-radius: 3px; font-family: monospace; font-size: 12px; }
+.step-text a { color: var(--blue); }
+.alert { border-radius: var(--radius-sm); padding: 10px 12px; font-size: 12px; line-height: 1.5; }
+.alert.success { background: var(--green-light); color: var(--green-dark); }
+.alert.error   { background: var(--red-light);   color: var(--red); }
+.alert.info    { background: var(--blue-light);   color: var(--blue); }
+
+/* ===== SPINNER ===== */
+.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== LOADING OVERLAY ===== */
+#loading { display: none; position: fixed; inset: 0; background: rgba(249,248,245,.8); z-index: 999; align-items: center; justify-content: center; flex-direction: column; gap: 12px; font-size: 14px; color: var(--text-sec); }
+#loading.show { display: flex; }
+#loading .spin-lg { width: 36px; height: 36px; border: 3px solid var(--gray-border); border-top-color: var(--green); border-radius: 50%; animation: spin .8s linear infinite; }
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spin-lg"></div><span>กำลังโหลด...</span></div>
+
+<header class="app-header">
+  <div>
+    <h1>🖨 ระบบใบรับซ่อมปริ้น</h1>
+    <div class="sub" id="shop-display">ร้านซ่อมปริ้น</div>
+  </div>
+  <button class="btn sm" style="background:rgba(255,255,255,.2);color:#fff;border-color:rgba(255,255,255,.3)" onclick="loadJobs()">🔄 รีเฟรช</button>
+</header>
+
+<nav class="tabs">
+  <div class="tab active" onclick="switchTab('jobs')">📋 งานทั้งหมด</div>
+  <div class="tab" onclick="switchTab('new')">➕ รับงานใหม่</div>
+  <div class="tab" onclick="switchTab('dash')">📊 ภาพรวม</div>
+  <div class="tab" onclick="switchTab('setup')">⚙️ ตั้งค่า</div>
+</nav>
+
+<!-- ===== TAB: งานทั้งหมด ===== -->
+<div class="panel active" id="panel-jobs">
+  <div style="display:flex;gap:8px;margin-bottom:10px">
+    <input type="text" id="search" placeholder="ค้นหาชื่อ / รุ่น / เลขงาน..." oninput="renderJobs()" style="flex:1">
+    <select id="filter" onchange="renderJobs()" style="width:120px">
+      <option value="">ทุกสถานะ</option>
+      <option value="wait">รอรับงาน</option>
+      <option value="diag">วินิจฉัย</option>
+      <option value="fix">กำลังซ่อม</option>
+      <option value="done">เสร็จแล้ว</option>
+    </select>
+  </div>
+  <div class="card" id="jobs-list"><div class="empty-state">กำลังโหลดข้อมูล...</div></div>
+</div>
+
+<!-- ===== TAB: รับงานใหม่ ===== -->
+<div class="panel" id="panel-new">
+  <div class="card">
+    <div class="card-title">ข้อมูลลูกค้า</div>
+    <div class="form-row">
+      <div class="form-field"><label>ชื่อลูกค้า *</label><input type="text" id="f-name" placeholder="สมชาย ใจดี"></div>
+      <div class="form-field"><label>เบอร์โทรศัพท์ *</label><input type="tel" id="f-phone" placeholder="081-xxx-xxxx"></div>
+    </div>
+    <div class="form-field"><label>LINE ID (ไม่บังคับ)</label><input type="text" id="f-line" placeholder="@username"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">ข้อมูลเครื่องปริ้น</div>
+    <div class="form-row">
+      <div class="form-field">
+        <label>ยี่ห้อ *</label>
+        <select id="f-brand">
+          <option>Epson</option><option>Canon</option><option>HP</option>
+          <option>Brother</option><option>Xerox</option><option>Ricoh</option><option>Samsung</option><option>อื่นๆ</option>
+        </select>
+      </div>
+      <div class="form-field"><label>รุ่น *</label><input type="text" id="f-model" placeholder="L3210, MFC-T920DW..."></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Serial No.</label><input type="text" id="f-serial" placeholder="ไม่บังคับ"></div>
+      <div class="form-field">
+        <label>ประเภทปัญหา *</label>
+        <select id="f-issue">
+          <option>พิมพ์ไม่ออก / ไม่ติดหมึก</option>
+          <option>หมึกเลอะ / ขาดเส้น</option>
+          <option>กระดาษติด</option>
+          <option>เครื่องไม่ติด / ไม่เปิด</option>
+          <option>เชื่อมต่อ WiFi / Network ไม่ได้</option>
+          <option>เสียงดังผิดปกติ</option>
+          <option>ปัญหาหัวพิมพ์</option>
+          <option>อื่นๆ</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-field"><label>รายละเอียดเพิ่มเติม</label><textarea id="f-detail" placeholder="อธิบายอาการ เวลาที่เกิดปัญหา สิ่งที่ลองทำแล้ว..."></textarea></div>
+    <div class="form-row">
+      <div class="form-field"><label>ราคาประเมิน (บาท)</label><input type="number" id="f-price" placeholder="0"></div>
+      <div class="form-field"><label>วันนัดรับ</label><input type="date" id="f-due"></div>
+    </div>
+  </div>
+
+  <div id="api-warning" class="alert info" style="margin-bottom:12px;display:none">
+    ⚠️ ยังไม่ได้ตั้งค่า API URL — ไปที่แท็บ "ตั้งค่า" เพื่อใส่ URL ของ Apps Script
+  </div>
+
+  <button class="btn primary block" id="btn-create" onclick="createJob()">
+    ✅ สร้างใบรับซ่อม + แจ้ง LINE
+  </button>
+</div>
+
+<!-- ===== TAB: ภาพรวม ===== -->
+<div class="panel" id="panel-dash">
+  <div class="stats-grid" id="stats"></div>
+  <div class="card" id="due-today-card">
+    <div class="card-title">⏰ ครบกำหนดวันนี้</div>
+    <div id="due-today"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">🕐 งานล่าสุด</div>
+    <div id="recent-jobs"></div>
+  </div>
+</div>
+
+<!-- ===== TAB: ตั้งค่า ===== -->
+<div class="panel" id="panel-setup">
+  <div class="card">
+    <div class="card-title">🏪 ข้อมูลร้าน</div>
+    <div class="form-field"><label>ชื่อร้าน</label><input type="text" id="s-shop" placeholder="ร้านซ่อมปริ้น ABC"></div>
+    <div class="form-field"><label>เบอร์โทรร้าน</label><input type="tel" id="s-phone" placeholder="02-xxx-xxxx"></div>
+    <button class="btn primary sm" onclick="saveSettings()">💾 บันทึก</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🔗 Apps Script API URL</div>
+    <div class="form-field">
+      <label>Web App URL (จาก Deploy)</label>
+      <input type="text" id="s-api" placeholder="https://script.google.com/macros/s/.../exec">
+    </div>
+    <button class="btn primary sm" onclick="saveApi()">💾 บันทึก URL</button>
+    <div id="api-test-result" style="margin-top:8px"></div>
+    <div style="margin-top:8px">
+      <button class="btn sm" onclick="testApi()">🧪 ทดสอบการเชื่อมต่อ</button>
+    </div>
+  </div>
+
+  <div class="line-banner">
+    <h3>📲 วิธีตั้งค่า LINE Notify (ฟรี)</h3>
+    <p>การแจ้งเตือน LINE ทำผ่าน Apps Script (Code.gs) ไม่ใช่หน้านี้</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📖 ขั้นตอนตั้งค่า LINE Notify</div>
+    <div class="step-item"><div class="step-num">1</div><div class="step-text">เปิด <a href="https://notify.line.me" target="_blank">notify.line.me</a> แล้วล็อกอินด้วย LINE</div></div>
+    <div class="step-item"><div class="step-num">2</div><div class="step-text">กด <strong>"Generate token"</strong> → ตั้งชื่อ เช่น "ร้านซ่อมปริ้น"</div></div>
+    <div class="step-item"><div class="step-num">3</div><div class="step-text">เลือก Chat ที่รับแจ้งเตือน (ตัวเอง หรือ Group LINE ร้าน)</div></div>
+    <div class="step-item"><div class="step-num">4</div><div class="step-text">กด Generate → คัดลอก Token ทั้งหมด</div></div>
+    <div class="step-item"><div class="step-num">5</div><div class="step-text">เปิด Apps Script → ใส่ Token ในบรรทัด <code>const LINE_TOKEN = "..."</code></div></div>
+    <div class="step-item"><div class="step-num">6</div><div class="step-text">เพิ่ม <strong>@LINE Notify</strong> เป็นเพื่อนใน LINE (สำคัญมาก!)</div></div>
+  </div>
+</div>
+
+<!-- ===== MODAL: รายละเอียดงาน ===== -->
+<div class="modal-overlay" id="modal">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<script>
+// ===== CONFIG (เก็บใน localStorage) =====
+let API_URL  = localStorage.getItem("api_url")  || "";
+let SHOP_NAME = localStorage.getItem("shop_name") || "ร้านซ่อมปริ้น";
+let SHOP_PHONE = localStorage.getItem("shop_phone") || "";
+let jobs = [];
+
+const STATUS = {
+  wait:   { label:"รอรับงาน",      icon:"⏳", next:"diag" },
+  diag:   { label:"กำลังวินิจฉัย", icon:"🔍", next:"fix" },
+  fix:    { label:"กำลังซ่อม",    icon:"🔧", next:"done" },
+  done:   { label:"เสร็จแล้ว",    icon:"✅", next:null },
+  cancel: { label:"ยกเลิก",       icon:"❌", next:null }
+};
+const NEXT_BTN = { diag:"เริ่มวินิจฉัย", fix:"เริ่มซ่อม", done:"ซ่อมเสร็จแล้ว" };
+
+// ===== INIT =====
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("shop-display").textContent = SHOP_NAME;
+  document.getElementById("s-shop").value  = SHOP_NAME;
+  document.getElementById("s-phone").value = SHOP_PHONE;
+  document.getElementById("s-api").value   = API_URL;
+  checkApiWarning();
+  loadJobs();
+  document.getElementById("modal").addEventListener("click", e => { if(e.target===document.getElementById("modal")) closeModal(); });
+});
+
+// ===== TABS =====
+function switchTab(t) {
+  document.querySelectorAll(".tab").forEach((el,i) => el.classList.toggle("active", ["jobs","new","dash","setup"][i]===t));
+  document.querySelectorAll(".panel").forEach((el,i) => el.classList.toggle("active", ["panel-jobs","panel-new","panel-dash","panel-setup"][i]==="panel-"+t));
+  if(t==="dash") renderDash();
+}
+
+// ===== API CALLS =====
+async function apiFetch(params) {
+  if(!API_URL) { alert("กรุณาตั้งค่า API URL ก่อน (แท็บ ตั้งค่า)"); return null; }
+  // ใช้ GET เท่านั้น — Apps Script ไม่มีปัญหา CORS กับ GET
+  const url = API_URL + "?" + new URLSearchParams(params);
+  const r = await fetch(url, { redirect: "follow" });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+async function loadJobs() {
+  showLoading(true);
+  try {
+    const data = await apiFetch({ action:"getAll" });
+    if(data && data.jobs) {
+      jobs = data.jobs.sort((a,b) => b.createdAt > a.createdAt ? 1 : -1);
+      renderJobs();
+    }
+  } catch(e) { showError("โหลดข้อมูลไม่สำเร็จ: "+e.message); }
+  showLoading(false);
+}
+
+async function createJob() {
+  const name  = document.getElementById("f-name").value.trim();
+  const phone = document.getElementById("f-phone").value.trim();
+  const model = document.getElementById("f-model").value.trim();
+  if(!name||!phone||!model) { alert("กรุณากรอก: ชื่อลูกค้า, เบอร์โทร และรุ่นเครื่อง"); return; }
+
+  const btn = document.getElementById("btn-create");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> กำลังบันทึก...';
+
+  try {
+    const data = await apiFetch({
+      action:      "create",
+      name,
+      phone,
+      lineId:      document.getElementById("f-line").value.trim(),
+      brand:       document.getElementById("f-brand").value,
+      model,
+      serial:      document.getElementById("f-serial").value.trim(),
+      issueType:   document.getElementById("f-issue").value,
+      issueDetail: document.getElementById("f-detail").value.trim(),
+      estPrice:    document.getElementById("f-price").value || "0",
+      dueDate:     document.getElementById("f-due").value
+    });
+
+    if(data && data.success) {
+      alert("✅ สร้างใบรับซ่อม " + data.id + " เรียบร้อย!");
+      clearForm();
+      await loadJobs();
+      switchTab("jobs");
+    } else {
+      alert("เกิดข้อผิดพลาด: " + (data?.error || "Unknown error"));
+    }
+  } catch(e) { alert("เกิดข้อผิดพลาด: "+e.message); }
+
+  btn.disabled = false;
+  btn.innerHTML = "✅ สร้างใบรับซ่อม + แจ้ง LINE";
+}
+
+async function updateStatus(id, status) {
+  const note = document.getElementById("update-note")?.value?.trim() || "";
+  const data = await apiFetch({ action:"update", id, status, note });
+  if(data && data.success) {
+    await loadJobs();
+    closeModal();
+    const updated = jobs.find(j=>j.id===id);
+    if(updated) openModal(id);
+  } else {
+    alert("เกิดข้อผิดพลาด: "+(data?.error||"Unknown"));
+  }
+}
+
+// ===== RENDER JOBS =====
+function renderJobs() {
+  const q  = document.getElementById("search").value.toLowerCase();
+  const fs = document.getElementById("filter").value;
+  const list = jobs.filter(j => {
+    const mq = !q || j.id.toLowerCase().includes(q) || j.name.toLowerCase().includes(q) || j.model.toLowerCase().includes(q);
+    const ms = !fs || j.status === fs;
+    return mq && ms;
+  });
+  const el = document.getElementById("jobs-list");
+  if(!list.length) { el.innerHTML = '<div class="empty-state">ไม่พบงานที่ตรงกับการค้นหา</div>'; return; }
+  el.innerHTML = list.map(j => `
+    <div class="job-row" onclick="openModal('${j.id}')">
+      <div>
+        <div class="job-id">${j.id}</div>
+        <div class="job-date">${fmtDate(j.createdAt)}</div>
+      </div>
+      <div class="job-body">
+        <div class="job-name">${j.name}</div>
+        <div class="job-sub">${j.brand} ${j.model} · ${j.issueType}</div>
+      </div>
+      <div style="text-align:right">
+        <span class="badge ${j.status}">${STATUS[j.status]?.label||j.status}</span>
+        ${j.estPrice&&j.estPrice!="0"?`<div style="font-size:11px;color:var(--text-sec);margin-top:3px">${j.estPrice} ฿</div>`:""}
+      </div>
+    </div>
+  `).join("");
+}
+
+// ===== MODAL =====
+function openModal(id) {
+  const j = jobs.find(x=>x.id===id);
+  if(!j) return;
+  const st = STATUS[j.status] || { label:j.status, icon:"", next:null };
+  const nextSt = st.next;
+
+  document.getElementById("modal-content").innerHTML = `
+    <div class="modal-head">
+      <div>
+        <div style="font-size:11px;color:var(--text-sec)">${j.id} · ${fmtDate(j.createdAt)}</div>
+        <div style="font-size:17px;font-weight:700;margin-top:2px">${j.name}</div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <span class="badge ${j.status}">${st.icon} ${st.label}</span>
+      ${j.estPrice&&j.estPrice!="0"?`<span style="font-size:12px;color:var(--text-sec)">฿${j.estPrice}</span>`:""}
+      ${j.dueDate?`<span style="font-size:12px;color:var(--text-sec)">📅 ${j.dueDate}</span>`:""}
+    </div>
+
+    <div class="card" style="background:var(--gray-light);box-shadow:none;border-color:var(--gray-border)">
+      <div style="font-weight:700">${j.brand} ${j.model}</div>
+      ${j.serial?`<div style="font-size:12px;color:var(--text-sec)">S/N: ${j.serial}</div>`:""}
+      <div style="font-size:13px;margin-top:6px"><strong>อาการ:</strong> ${j.issueType}</div>
+      ${j.issueDetail?`<div style="font-size:12px;color:var(--text-sec);margin-top:3px">${j.issueDetail}</div>`:""}
+      <div style="font-size:12px;margin-top:6px">📞 ${j.phone} ${j.lineId?"· LINE: "+j.lineId:""}</div>
+    </div>
+
+    <div style="font-size:12px;font-weight:700;color:var(--text-sec);text-transform:uppercase;margin:12px 0 8px">ประวัติการซ่อม</div>
+    <div class="timeline">
+      ${(j.history||[]).slice().reverse().map((h,i)=>`
+        <div class="tl-item">
+          <div class="tl-dot ${i===0?"curr":"done"}">${STATUS[h.status]?.icon||"●"}</div>
+          <div class="tl-info">
+            <div class="tl-label">${h.label}</div>
+            <div class="tl-time">${h.time}</div>
+            ${h.note?`<div class="tl-note">${h.note}</div>`:""}
+          </div>
+        </div>
+      `).join("")}
+    </div>
+
+    ${nextSt?`
+      <div style="border-top:1px solid var(--gray-border);padding-top:12px;margin-top:12px">
+        <div class="form-field"><label>หมายเหตุ (ถ้ามี)</label><input type="text" id="update-note" placeholder="เพิ่มหมายเหตุ เช่น เปลี่ยน print head..."></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn primary" style="flex:1" onclick="updateStatus('${id}','${nextSt}')">
+            ${STATUS[nextSt]?.icon} ${NEXT_BTN[nextSt]||STATUS[nextSt]?.label}
+          </button>
+          <button class="btn danger" onclick="updateStatus('${id}','cancel')">ยกเลิกงาน</button>
+        </div>
+      </div>
+    `:`<div style="text-align:center;padding:10px;font-size:13px;color:var(--text-sec)">${j.status==="done"?"✅ งานเสร็จสมบูรณ์":"❌ งานถูกยกเลิก"}</div>`}
+
+    <div style="display:flex;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--gray-border);flex-wrap:wrap">
+      <button class="btn sm" onclick="printReceipt('${id}')">🖨 พิมพ์ใบรับซ่อม</button>
+      <button class="btn sm" onclick="copyTrackUrl('${id}')">📲 ลิงก์ติดตามสถานะ</button>
+      <button class="btn sm" style="background:#00B900;color:#fff;border-color:#00B900" onclick="copyLineRegisterUrl('${id}')">💬 ส่งลิงก์ลงทะเบียน LINE</button>
+    </div>
+  `;
+  document.getElementById("modal").classList.add("open");
+}
+
+function closeModal() { document.getElementById("modal").classList.remove("open"); }
+
+// ===== DASHBOARD =====
+function renderDash() {
+  const c = { wait:0, diag:0, fix:0, done:0, cancel:0 };
+  jobs.forEach(j => { if(c[j.status]!==undefined) c[j.status]++; });
+  document.getElementById("stats").innerHTML = `
+    <div class="stat-card"><div class="stat-num" style="color:var(--amber)">${c.wait}</div><div class="stat-lbl">รอรับงาน</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--purple)">${c.diag+c.fix}</div><div class="stat-lbl">กำลังซ่อม</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--green)">${c.done}</div><div class="stat-lbl">เสร็จแล้ว</div></div>
+  `;
+  const today = new Date().toISOString().slice(0,10);
+  const due = jobs.filter(j=>j.dueDate===today&&j.status!=="done"&&j.status!=="cancel");
+  document.getElementById("due-today").innerHTML = due.length
+    ? due.map(j=>`<div class="job-row" onclick="openModal('${j.id}')"><div class="job-body"><div class="job-name">${j.name}</div><div class="job-sub">${j.brand} ${j.model}</div></div><span class="badge ${j.status}">${STATUS[j.status].label}</span></div>`).join("")
+    : '<div class="empty-state" style="padding:12px">ไม่มีงานครบกำหนดวันนี้ 👍</div>';
+  document.getElementById("recent-jobs").innerHTML = jobs.slice(0,5)
+    .map(j=>`<div class="job-row" onclick="openModal('${j.id}')"><div class="job-id">${j.id}</div><div class="job-body"><div class="job-name">${j.name}</div><div class="job-sub">${j.brand} ${j.model}</div></div><span class="badge ${j.status}">${STATUS[j.status]?.label||j.status}</span></div>`).join("")
+    || '<div class="empty-state" style="padding:12px">ยังไม่มีงาน</div>';
+}
+
+// ===== SETTINGS =====
+function saveSettings() {
+  SHOP_NAME  = document.getElementById("s-shop").value.trim()  || "ร้านซ่อมปริ้น";
+  SHOP_PHONE = document.getElementById("s-phone").value.trim();
+  localStorage.setItem("shop_name",  SHOP_NAME);
+  localStorage.setItem("shop_phone", SHOP_PHONE);
+  document.getElementById("shop-display").textContent = SHOP_NAME;
+  alert("✅ บันทึกข้อมูลร้านแล้ว");
+}
+function saveApi() {
+  API_URL = document.getElementById("s-api").value.trim();
+  localStorage.setItem("api_url", API_URL);
+  checkApiWarning();
+  alert("✅ บันทึก URL แล้ว");
+  loadJobs();
+}
+async function testApi() {
+  const el = document.getElementById("api-test-result");
+  el.innerHTML = '<span style="color:var(--text-sec)">กำลังทดสอบ...</span>';
+  try {
+    const data = await apiFetch({ action:"getAll" });
+    el.innerHTML = data && data.jobs!==undefined
+      ? `<div class="alert success">✅ เชื่อมต่อสำเร็จ! พบงานซ่อม ${data.jobs.length} รายการ</div>`
+      : `<div class="alert error">❌ เชื่อมต่อไม่ได้: ${JSON.stringify(data)}</div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="alert error">❌ Error: ${e.message}</div>`;
+  }
+}
+function checkApiWarning() {
+  const el = document.getElementById("api-warning");
+  if(el) el.style.display = API_URL ? "none" : "block";
+}
+
+// ===== UTILITIES =====
+function clearForm() {
+  ["f-name","f-phone","f-line","f-model","f-serial","f-detail","f-price","f-due"].forEach(id=>{
+    document.getElementById(id).value="";
+  });
+}
+function fmtDate(s) {
+  if(!s) return "-";
+  try { return new Date(s).toLocaleDateString("th-TH",{day:"2-digit",month:"short",year:"2-digit",hour:"2-digit",minute:"2-digit"}); } catch(e){ return s; }
+}
+function showLoading(v) { document.getElementById("loading").classList.toggle("show", v); }
+function showError(msg) { alert(msg); }
+
+function printReceipt(id) {
+  const j = jobs.find(x=>x.id===id);
+  if(!j) return;
+  const base     = window.location.origin + window.location.pathname.replace(/[^/]*$/, "");
+  const trackUrl = base + "track.html?id=" + id;
+  const w = window.open("","_blank","width=380,height=620");
+  w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
+  <title>ใบรับซ่อม ${id}</title>
+  <style>
+    body{font-family:sans-serif;font-size:12px;padding:16px;max-width:280px;margin:0 auto;color:#000}
+    .c{text-align:center}.b{font-weight:700}.d{border-top:1px dashed #ccc;margin:8px 0}
+    .row{display:flex;justify-content:space-between;padding:2px 0}
+    .id{font-size:18px;font-weight:900;text-align:center;margin:6px 0;letter-spacing:2px}
+    .sm{font-size:10px;color:#666}
+    #qr{text-align:center;margin:10px 0}
+  </style>
+  </head><body>
+  <div class="c b" style="font-size:15px">${SHOP_NAME}</div>
+  ${SHOP_PHONE?`<div class="c sm">${SHOP_PHONE}</div>`:""}
+  <div class="d"></div>
+  <div class="c sm">ใบรับซ่อม</div>
+  <div class="id">${id}</div>
+  <div class="c sm">${fmtDate(j.createdAt)}</div>
+  <div class="d"></div>
+  <div class="row"><span>ลูกค้า</span><span class="b">${j.name}</span></div>
+  <div class="row"><span>โทร</span><span>${j.phone}</span></div>
+  <div class="d"></div>
+  <div class="row"><span>เครื่อง</span><span class="b">${j.brand} ${j.model}</span></div>
+  ${j.serial?`<div class="row"><span>S/N</span><span>${j.serial}</span></div>`:""}
+  <div class="row"><span>อาการ</span><span>${j.issueType}</span></div>
+  ${j.issueDetail?`<div class="sm" style="margin:4px 0">${j.issueDetail}</div>`:""}
+  <div class="d"></div>
+  <div class="row"><span>ราคาประเมิน</span><span class="b">${j.estPrice||"0"} บาท</span></div>
+  ${j.dueDate?`<div class="row"><span>วันนัดรับ</span><span>${j.dueDate}</span></div>`:""}
+  <div class="d"></div>
+  <div class="c sm">สแกน QR Code ติดตามสถานะ</div>
+  <div id="qr"></div>
+  <div class="c sm" style="margin-top:6px">ขอบคุณที่ใช้บริการ 🙏</div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+  <script>new QRCode(document.getElementById("qr"),{text:"${trackUrl}",width:110,height:110});<\/script>
+  </body></html>`);
+  w.document.close();
+  setTimeout(()=>w.print(), 900);
+}
+
+function copyTrackUrl(id) {
+  const base = window.location.origin + window.location.pathname.replace(/[^/]*$/, "");
+  const url  = base + "track.html?id=" + id;
+  navigator.clipboard.writeText(url).then(()=>alert("✅ คัดลอกลิงก์ติดตามสถานะแล้ว!\n\nส่งลิงก์นี้ให้ลูกค้าทาง LINE ส่วนตัวได้เลยครับ\n\n" + url));
+}
+
+function copyLineRegisterUrl(id) {
+  // ลิงก์นี้เมื่อลูกค้ากด → เปิด LINE OA ร้าน พร้อมพิมพ์เลขงานให้อัตโนมัติ → กดส่งครั้งเดียว
+  const lineOaId  = "@170htkka";
+  const deepLink  = "https://line.me/R/oaMessage/" + lineOaId + "/?" + encodeURIComponent(id);
+  const base      = window.location.origin + window.location.pathname.replace(/[^/]*$/, "");
+  const trackUrl  = base + "track.html?id=" + id;
+  const fullMsg   = "🔧 ติดตามงานซ่อมเครื่องปริ้น\nเลขงาน: " + id + "\n\n"
+                  + "👉 กดลิงก์นี้เพื่อรับแจ้งเตือนเมื่อซ่อมเสร็จ:\n" + deepLink + "\n\n"
+                  + "📊 ดูสถานะได้ที่:\n" + trackUrl;
+  navigator.clipboard.writeText(fullMsg).then(()=>alert("✅ คัดลอกข้อความแล้ว!\n\nวางส่งให้ลูกค้าทาง LINE ได้เลยครับ\nลูกค้าแค่กดลิงก์ → กดส่ง → รับแจ้งเตือนอัตโนมัติ"));
+}
+</script>
+</body>
+</html>
